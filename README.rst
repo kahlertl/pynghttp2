@@ -86,4 +86,4 @@ Server Session
 
 
 .. _nghttp2: https://nghttp2.org/
-.. _upcn: https://upcn.eu/
+.. _µPCN: https://upcn.eu/
