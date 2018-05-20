@@ -1043,7 +1043,8 @@ nghttp2.nghttp2_version.argtypes = [c_int]
 nghttp2.nghttp2_version.restype = POINTER(info)
 
 def version():
-    info = nghttp2.nghttp2_version(c_int(0))
+    return nghttp2.nghttp2_version(c_int(0)).contents
+
 
 
 nghttp2.nghttp2_session_callbacks_del.argtypes = [session_callbacks_p]
