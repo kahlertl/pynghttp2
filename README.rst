@@ -4,6 +4,11 @@ pynghttp2
 
 .. image:: https://travis-ci.org/f3anaro/pynghttp2.svg?branch=master
     :target: https://travis-ci.org/f3anaro/pynghttp2
+    :alt: Build Status
+
+.. image:: https://codecov.io/gh/f3anaro/pynghttp2/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/f3anaro/pynghttp2
+    :alt: Code Coverage
 
 pynghttp2 are simple asyncio Python bindings based on ctypes for the nghttp2_
 library. The only thing you need is a ``libnghttp2`` version on your system.
