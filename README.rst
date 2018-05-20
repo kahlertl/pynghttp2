@@ -2,6 +2,9 @@
 pynghttp2
 =========
 
+.. image:: https://travis-ci.org/f3anaro/pynghttp2.svg?branch=master
+    :target: https://travis-ci.org/f3anaro/pynghttp2
+
 pynghttp2 are simple asyncio Python bindings based on ctypes for the nghttp2_
 library. The only thing you need is a ``libnghttp2`` version on your system.
 
