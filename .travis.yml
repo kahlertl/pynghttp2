@@ -24,6 +24,9 @@ before_install:
   - sudo sh -c 'echo /usr/local/lib > /etc/ld.so.conf.d/local.conf'
   - sudo ldconfig
 
-install: pip install -U tox-travis
+install: pip install -U tox-travis codecov
 
 script: tox
+
+# Upload coverage report to codecov.io
+after_success: codecov
