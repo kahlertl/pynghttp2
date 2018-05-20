@@ -1,0 +1,13 @@
+# Config file for automatic testing at travis-ci.org
+
+language: python
+python:
+  - 3.6
+
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq libnghttp2-14
+
+install: pip install -U tox-travis
+
+script: tox
