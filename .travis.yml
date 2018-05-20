@@ -28,5 +28,6 @@ install: pip install -U tox-travis codecov
 
 script: tox
 
-# Upload coverage report to codecov.io
-after_success: codecov
+# Upload combined coverage reports to codecov.io. The reports of the different
+# Python environments are combined in an extra tox testenv.
+after_success: codecov --file .tox/coverage.xml
