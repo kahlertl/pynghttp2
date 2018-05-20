@@ -5,12 +5,24 @@ python:
   - 3.6
 
 before_install:
+  # Build libnghttp2 from source
+
+  # Get source code as tar-ball from GitHub and extract it
   - wget https://github.com/nghttp2/nghttp2/releases/download/v1.25.0/nghttp2-1.25.0.tar.gz
   - tar xzf nghttp2-1.25.0.tar.gz
   - cd nghttp2-1.25.0/
+
+  # Only build shared library
   - ./configure --enable-lib-only --enable-shared --disable-static
   - make
+
+  # Install to OS
   - sudo make install
+
+  # Add ldconfig file for /usr/local/lib directory to be able to load shared
+  # libraries from there
+  - sudo sh -c 'echo /usr/local/lib > /etc/ld.so.conf.d/local.conf'
+  - sudo ldconfig
 
 install: pip install -U tox-travis
 
