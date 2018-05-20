@@ -5,8 +5,12 @@ python:
   - 3.6
 
 before_install:
-  - sudo apt-get update -qq
-  - sudo apt-get install -qq libnghttp2-14
+  - wget https://github.com/nghttp2/nghttp2/releases/download/v1.25.0/nghttp2-1.25.0.tar.gz
+  - tar xzf nghttp2-1.25.0.tar.gz
+  - cd nghttp2-1.25.0/
+  - ./configure --enable-lib-only --enable-shared --disable-static
+  - make
+  - sudo make install
 
 install: pip install -U tox-travis
 
