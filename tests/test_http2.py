@@ -31,7 +31,7 @@ async def test_custom_url(echo_server, event_loop):
 
 @pytest.mark.asyncio
 async def test_default_ports():
-    with pytest.raises(ConnectionResetError):
+    with pytest.raises(ConnectionError):
         resp = await http2.get('http://localhost/ping')
 
 

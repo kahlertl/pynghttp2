@@ -6,7 +6,7 @@ from pynghttp2 import ClientSession, ServerSession
 
 @pytest.mark.asyncio
 async def test_connection_refused(event_loop):
-    with pytest.raises(ConnectionRefusedError):
+    with pytest.raises(ConnectionError):
         async with ClientSession(host='localhost', port=64602, loop=event_loop) as session:
             pass
 
