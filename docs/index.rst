@@ -11,7 +11,7 @@ gateway in the µPCN_ project - an implementation of Delay-tolerant Networking
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
    quickstart
    api

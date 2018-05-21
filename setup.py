@@ -7,14 +7,16 @@ def read(fname):
 
 setup(
     name='pynghttp2',
-    version='0.1.0',
+    version='0.1.1',
+    platforms=['POSIX/Unix'],
     description='Asyncio bindings for libnghttp2 based on ctypes',
     long_description=read('README.rst'),
+    long_description_content_type='text/x-rst; charset=UTF-8',
     license='MIT',
     author='Lucas Kahlert',
     author_email='lucas.kahlert@square-src.de',
     url='https://github.com/f3anaro/pynghttp2',
-    keywords=['HTTP/2', 'nghttp2', 'bindings', 'asyncio', 'ctypes'],
+    keywords=' '.join(['HTTP/2', 'nghttp2', 'bindings', 'asyncio', 'ctypes']),
     packages=['pynghttp2'],
     install_requires=[],
     extras_require={
@@ -31,10 +33,17 @@ setup(
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'License :: OSI Approved :: MIT License',
+        'Operating System :: POSIX',
+        'Operating System :: Unix',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: CPython',
         'Topic :: Software Development',
     ],
+    project_urls={
+        'Source Code': 'https://github.com/f3anaro/pynghttp2/',
+        'Documentation': 'https://pynghttp2.readthedocs.io/',
+        'Bug Tracker': 'https://github.com/f3anaro/pynghttp2/issues',
+    },
 )
