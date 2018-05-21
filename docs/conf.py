@@ -14,7 +14,14 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(__file__, '../..')))
+from unittest.mock import MagicMock
+
+sys.modules.update([('pynghttp2.bindings', MagicMock())])
+
+try:
+    import pynghttp2
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(__file__, '../..')))
 
 
 # -- Project information -----------------------------------------------------
@@ -40,6 +47,7 @@ release = '0.1.0'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',

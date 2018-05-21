@@ -47,5 +47,8 @@ Ctypes Bindings
     :undoc-members:
     :show-inheritance:
 
-
+.. automodule:: pynghttp2.typedefs
+    :members:
+    :undoc-members:
+    :show-inheritance:
 

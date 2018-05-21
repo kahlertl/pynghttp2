@@ -1,10 +1,5 @@
-"""HTTP/2 related functionality
-
-Dependencies:
-    This module requires the ``nghttp2`` binary for sending HTTP/2 requests. If
-    you want to receive HTTP/2 requests the nghttp2 Python bindings are
-    required. This moduls tries to import them. If the bindings cannot be found,
-    the :class:`HTTP2Receiver` is not available but the module will not fail.
+"""Asyncio HTTP/2 client and server sessions based on the :mod:`.nghttp2` Python
+wrapper around the nghttp2 API.
 """
 import asyncio
 import logging
