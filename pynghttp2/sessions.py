@@ -343,7 +343,7 @@ class ServerProtocol(BaseHTTP2):
 
     def establish_session(self):
         logger.debug('Connection from %s:%d', *self.peername)
-        options = nghttp2.Options(no_auto_window_update=True, no_http_messaging=True)
+        options = nghttp2.Options(no_auto_window_update=True)
         self.session = nghttp2.Session(nghttp2.session_type.SERVER, {
             'on_frame_recv': on_frame_recv,
             'on_data_chunk_recv': on_data_chunk_recv,
@@ -373,7 +373,7 @@ class ClientProtocol(BaseHTTP2):
 
     def establish_session(self):
         logger.debug('Connected to %s:%d', *self.peername)
-        options = nghttp2.Options(no_auto_window_update=True, no_http_messaging=True)
+        options = nghttp2.Options(no_auto_window_update=True)
         self.session = nghttp2.Session(nghttp2.session_type.CLIENT, {
             'on_frame_recv': on_frame_recv,
             'on_frame_send': on_frame_send,
