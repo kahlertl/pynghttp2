@@ -21,6 +21,15 @@ async def test_post(echo_server, event_loop):
 
 
 @pytest.mark.asyncio
+async def test_big_post(echo_server, event_loop):
+    async with echo_server:
+        message = bytes(bytearray(2**16))
+        resp = await http2.post('http://localhost:64602/echo', data=message, loop=event_loop)
+        echo = await resp.read()
+        assert echo == message
+
+
+@pytest.mark.asyncio
 async def test_custom_url(echo_server, event_loop):
     async with echo_server:
         resp = await http2.get('dtn://groundstation1/ping',
