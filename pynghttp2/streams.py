@@ -248,31 +248,6 @@ class StreamReader(object):
         self._protocol.flush()
 
 
-def make_stream_reader(data, headers):
-    if data is None:
-        # Empty response. Create a stream reader and immediately feed EOF
-        content = StreamReader()
-        content.feed_eof()
-        return content
-
-    if isinstance(data, str):
-        data = data.encode()
-
-    if isinstance(data, bytes):
-        # Fixed bytes content. Create stream reader, feed all bytes to it
-        # and terminate further feeding with EOF.
-        #
-        # The length of the stream is known, hence a Content-Length header
-        # is added.
-        content = StreamReader()
-        content.feed_data(data)
-        content.feed_eof()
-        headers.append(('content-length', str(len(data))))
-        return content
-
-    return data
-
-
 #: Minimal size of a DATA block. If a stream reader 
 DATA_MIN_SIZE = 128
 

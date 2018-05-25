@@ -10,7 +10,7 @@ from ctypes import string_at
 
 from . import nghttp2
 from .messages import Request, Response, Direction
-from .streams import make_stream_reader, read_data_source
+from .streams import read_data_source
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,9 @@ send_id = 0
 
 @nghttp2.on_frame_recv_callback
 def on_frame_recv(session, frame, protocol):
-    # print("recv", nghttp2.frame_type(frame[0].hd.type).name, f"stream_id={frame[0].hd.stream_id}")
+    stream_id = frame[0].hd.stream_id
+
+    # print("recv", nghttp2.frame_type(frame[0].hd.type).name, f"stream_id={stream_id}")
     # if frame[0].hd.flags & nghttp2.flag.END_STREAM:
     #     print("     END_STREAM")
 
@@ -34,32 +36,20 @@ def on_frame_recv(session, frame, protocol):
     #     print(f"     error_code={nghttp2.error_code(frame[0].rst_stream.error_code).name}")
 
     # if frame[0].hd.type == nghttp2.frame_type.WINDOW_UPDATE:
-    #     if frame[0].hd.stream_id == 0:
+    #     if stream_id == 0:
     #         print(f"    connection_window_size={protocol.session.get_remote_window_size()}")
     #     else:
-    #         print(f"    stream_window_size={protocol.session.get_stream_remote_window_size(frame[0].hd.stream_id)}")
+    #         print(f"    stream_window_size={protocol.session.get_stream_remote_window_size(stream_id)}")
 
     if frame[0].hd.flags & nghttp2.flag.END_HEADERS:
-        req = nghttp2.session_get_stream_user_data(session, frame[0].hd.stream_id)
-
-        # For DATA and HEADERS frame, this callback may be called after
-        # on_stream_close_callback. Check that stream is still alive.
-        if not req:
-            return 0
-
-        protocol.headers_received(req)
+        protocol.headers_received(stream_id)
 
     if frame[0].hd.flags & nghttp2.flag.END_STREAM:
         if frame[0].hd.type in [nghttp2.frame_type.HEADERS, nghttp2.frame_type.DATA]:
-            req = nghttp2.session_get_stream_user_data(session, frame[0].hd.stream_id)
-
-            if not req:
-                return 0
-
-            protocol.content_received(req)
+            protocol.content_received(stream_id)
 
     if frame[0].hd.type == nghttp2.frame_type.WINDOW_UPDATE:
-        protocol.window_update_received(frame[0].hd.stream_id)
+        protocol.window_update_received(stream_id)
 
     elif frame[0].hd.type == nghttp2.frame_type.GOAWAY:
         protocol.goaway_received()
@@ -69,7 +59,9 @@ def on_frame_recv(session, frame, protocol):
 
 @nghttp2.on_frame_send_callback
 def on_frame_send(session, frame, protocol):
-    # print("send", nghttp2.frame_type(frame[0].hd.type).name, f"stream_id={frame[0].hd.stream_id}")
+    stream_id = frame[0].hd.stream_id
+
+    # print("send", nghttp2.frame_type(frame[0].hd.type).name, f"stream_id={stream_id}")
     # if frame[0].hd.flags & nghttp2.flag.END_STREAM:
     #     print("     END_STREAM")
 
@@ -83,16 +75,16 @@ def on_frame_send(session, frame, protocol):
 
     # if frame[0].hd.type == nghttp2.frame_type.DATA:
     #     print(f"    connection_window_size={protocol.session.get_remote_window_size()}")
-    #     print(f"    stream_window_size={protocol.session.get_stream_remote_window_size(frame[0].hd.stream_id)}")
+    #     print(f"    stream_window_size={protocol.session.get_stream_remote_window_size(stream_id)}")
 
     if frame[0].hd.flags & nghttp2.flag.END_HEADERS:
-        msg = nghttp2.session_get_stream_user_data(session, frame[0].hd.stream_id)
-        protocol.headers_sent(msg)
+        # msg = nghttp2.session_get_stream_user_data(session, stream_id)
+        protocol.headers_sent(stream_id)
 
     if frame[0].hd.flags & nghttp2.flag.END_STREAM:
         if frame[0].hd.type in [nghttp2.frame_type.HEADERS, nghttp2.frame_type.DATA]:
-            msg = nghttp2.session_get_stream_user_data(session, frame[0].hd.stream_id)
-            protocol.content_sent(msg)
+            # msg = nghttp2.session_get_stream_user_data(session, stream_id)
+            protocol.content_sent(stream_id)
 
     if frame[0].hd.type == nghttp2.frame_type.GOAWAY:
         protocol.goaway_sent()
@@ -106,16 +98,18 @@ def on_header(session, frame, name, namelen, value, valuelen, flags, protocol):
         string_at(name, size=namelen).decode(),
         string_at(value, size=valuelen).decode(),
     )
-    msg = nghttp2.session_get_stream_user_data(session, frame[0].hd.stream_id)
-    msg.headers.append(header)
+    # msg = nghttp2.session_get_stream_user_data(session, frame[0].hd.stream_id)
+    # msg.headers.append(header)
+    protocol.on_header(frame[0].hd.stream_id, header)
     return 0
 
 
 @nghttp2.on_data_chunk_recv_callback
 def on_data_chunk_recv(session, flags, stream_id, data, length, protocol):
-    msg = nghttp2.session_get_stream_user_data(session, stream_id)
-    msg.content.feed_data(string_at(data, length))
-    protocol.session.consume_connection(length)
+    protocol.on_data_chunk_recv(stream_id, string_at(data, length))
+    # msg = nghttp2.session_get_stream_user_data(session, stream_id)
+    # msg.content.feed_data(string_at(data, length))
+    # protocol.session.consume_connection(length)
     # protocol.session.consume_stream(stream_id, length)
     return 0
 
@@ -186,8 +180,11 @@ class BaseHTTP2(asyncio.Protocol):
         self.session = None
         self._connection_lost = True
 
-        for msg in self._stream_data.values():
-            msg.set_exception(ConnectionResetError('Connection lost'))
+        for incoming, outgoing in self._stream_data.values():
+            if incoming is not None:
+                incoming.set_exception(ConnectionResetError('Connection lost'))
+            if outgoing is not None:
+                outgoing.set_exception(ConnectionResetError('Connection lost'))
 
         if not self._paused and self._drain_waiter is not None:
             waiter = self._drain_waiter
@@ -284,40 +281,69 @@ class BaseHTTP2(asyncio.Protocol):
 
         waiter = self.loop.create_future()
         self._goaway_waiter = waiter
-        try:
-            await waiter
-        finally:
-            self._goaway_waiter = None
+        await waiter
 
-    def submit_request(self, resp, headers, provider):
-        stream_id = self.session.submit_request(headers, provider, stream_data=resp)
+    def submit_request(self, req, resp):
+        if req.content.at_eof():
+            provider = None
+        else:
+            provider = nghttp2.data_provider(
+                source=nghttp2.data_source(ptr=req.content),
+                read_callback=read_data_source,
+            )
+        stream_id = self.session.submit_request(req.headers, provider)
+        req.stream_id = stream_id
         resp.stream_id = stream_id
-        self._stream_data[stream_id] = resp
+        self._stream_data[stream_id] = resp, req
 
         # Write request to buffers
         self.flush()
 
         logger.debug("Submitted request on stream %d", stream_id)
 
-    def submit_response(self, stream_id, headers, provider, resp):
-        self.session.submit_response(stream_id, headers, provider)
-        self.session.set_stream_user_data(stream_id, resp)
-        self._stream_data[stream_id] = resp
+    def submit_response(self, stream_id, resp):
+        if resp.content.at_eof():
+            provider = None
+        else:
+            provider = nghttp2.data_provider(
+                source=nghttp2.data_source(ptr=resp.content),
+                read_callback=read_data_source,
+            )
+        self.session.submit_response(stream_id, resp.headers, provider)
+        req, _ = self._stream_data[stream_id]
+        self._stream_data[stream_id] = (req, resp)
         self.flush()
 
-    def headers_sent(self, resp):
-        resp.headers_sent()
+    def on_header(self, stream_id, header):
+        incoming, _ = self._stream_data[stream_id]
+        incoming.headers.append(header)
 
-    def content_sent(self, resp):
-        resp.content_sent()
+    def headers_sent(self, stream_id):
+        _, outgoing = self._stream_data[stream_id]
+        outgoing.headers_sent()
 
-    def stream_closed(self, msg, error_code):
-        msg.stream_closed()
+    def on_data_chunk_recv(self, stream_id, chunk):
+        incoming, _ = self._stream_data[stream_id]
+        incoming.content.feed_data(chunk)
+        self.session.consume_connection(len(chunk))
 
-        try:
-            del self._stream_data[msg.stream_id]
-        except KeyError:
-            pass
+    def content_sent(self, stream_id):
+        _, outgoing = self._stream_data[stream_id]
+        outgoing.content_sent()
+
+    def stream_closed(self, stream_id, error_code):
+        if stream_id not in self._stream_data:
+            return
+
+        incoming, outgoing = self._stream_data[stream_id]
+
+        if incoming is not None:
+            incoming.stream_closed()
+
+        if outgoing is not None:
+            incoming.stream_closed()            
+
+        del self._stream_data[msg.stream_id]
 
     def window_update_received(self, stream_id):
         waiter = self._window_update_waiters.get(stream_id, None)
@@ -357,15 +383,16 @@ class ServerProtocol(BaseHTTP2):
         ])
 
     def begin_headers(self, stream_id):
-        req = Request(self, stream_id, loop=self.loop)
-        self.session.set_stream_user_data(stream_id, req)
-        self._stream_data[stream_id] = req
+        req = Request(self, stream_id, direction=Direction.RECEIVING, loop=self.loop)
+        self._stream_data[stream_id] = (req, None)
 
-    def headers_received(self, req):
+    def headers_received(self, stream_id):
+        req, _ = self._stream_data[stream_id]
         req.headers_received()
         self._on_request(req)
 
-    def content_received(self, req):
+    def content_received(self, stream_id):
+        req, _ = self._stream_data[stream_id]
         req.content.feed_eof()
 
 
@@ -389,10 +416,12 @@ class ClientProtocol(BaseHTTP2):
     def begin_headers(self, stream_id):
         pass
 
-    def headers_received(self, resp):
+    def headers_received(self, stream_id):
+        resp, _ = self._stream_data[stream_id]
         resp.headers_received()
 
-    def content_received(self, resp):
+    def content_received(self, stream_id):
+        resp, _ = self._stream_data[stream_id]
         resp.content.feed_eof()
 
 
@@ -486,32 +515,27 @@ class ClientSession(object):
         await self.protocol.terminate()
 
     def request(self, method, url, headers=None, data=None):
+        # Generate leading pseudo header fields
         _url = urlparse(url)
         _headers = [
             (':method', method),
             (':scheme', _url.scheme),
             (':authority', _url.netloc),
-            (':path', _url.path or '*'),
+            (':path', _url.path),
         ]
-
         if headers:
             _headers.extend(headers)
 
-        resp = Response(self.protocol,
-            stream_id=None, direction=Direction.RECEIVING,
-            loop=self.loop
+        req = Request(self.protocol, stream_id=None,
+            headers=_headers, data=data,
+            direction=Direction.SENDING, loop=self.loop
         )
 
-        if data is None:
-            provider = None
-        else:
-            reader = make_stream_reader(data, _headers)
-            provider = nghttp2.data_provider(
-                source=nghttp2.data_source(ptr=reader),
-                read_callback=read_data_source,
-            )
+        resp = Response(self.protocol, stream_id=None,
+            direction=Direction.RECEIVING, loop=self.loop
+        )
 
-        self.protocol.submit_request(resp, _headers, provider)
+        self.protocol.submit_request(req, resp)
 
         return resp
 

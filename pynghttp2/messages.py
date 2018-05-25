@@ -3,7 +3,7 @@ try:
     import simplejson as json
 except ImportError:
     import json
-from .streams import StreamReader, make_stream_reader, read_data_source
+from .streams import StreamReader, read_data_source
 from . import nghttp2
 
 
@@ -23,12 +23,36 @@ class Direction(enum.IntEnum):
 
 class HTTP2Message(object):
 
-    def __init__(self, protocol, stream_id, direction, content=None, loop=None):
+    def __init__(self, protocol, stream_id, direction, headers=None, data=None, loop=None):
         self.headers = []
-        if content is None:
+
+        if headers:
+            self.headers.extend(headers)
+
+        if data is None:
             self.content = StreamReader()
+
+            # Empty outgoing message. Immediately feed EOF
+            if direction == Direction.SENDING:
+                self.content.feed_eof()
         else:
-            self.content = content
+            if isinstance(data, str):
+                data = data.encode()
+
+            if isinstance(data, bytes):
+                # Fixed bytes content. Create stream reader, feed all bytes to
+                # it and terminate further feeding with EOF.
+                #
+                # The length of the stream is known, hence a Content-Length
+                # header is added.
+                self.content = StreamReader()
+                self.content.feed_data(data)
+                self.content.feed_eof()
+
+                self.headers.append(('content-length', str(len(data))))
+            else:
+                self.content = data
+
         self.content.set_protocol(protocol, stream_id)
 
         # Session handling
@@ -177,9 +201,6 @@ class HTTP2Message(object):
 
 class Request(HTTP2Message):
 
-    def __init__(self, protocol, stream_id, loop):
-        super().__init__(protocol, stream_id, Direction.RECEIVING, loop=loop)
-
     @property
     def path(self):
         for name, value in self.headers:
@@ -201,26 +222,18 @@ class Request(HTTP2Message):
         )
 
     def response(self, status, data=None, headers=None):
+        assert self._direction == Direction.RECEIVING, "Cannot respond on receiving request"
         _headers = [
             (':status', str(status)),
         ]
         if headers:
             _headers.extend(headers)
 
-        reader = make_stream_reader(data, _headers)
-        resp = Response(self.protocol, self._stream_id, Direction.SENDING,
-                        content=reader, loop=self._loop)
+        resp = Response(self.protocol, self._stream_id,
+            headers=_headers, data=data,
+            direction=Direction.SENDING, loop=self._loop)
 
-        if data is None:
-            provider = None
-            resp.content_sent()
-        else:
-            provider = nghttp2.data_provider(
-                source=nghttp2.data_source(ptr=reader),
-                read_callback=read_data_source,
-            )
-
-        self.protocol.submit_response(self._stream_id, _headers, provider, resp)
+        self.protocol.submit_response(self._stream_id, resp)
 
         return resp
 
