@@ -1,0 +1,13 @@
+#!/bin/bash
+export COVERAGE_FILE=.coverage
+
+cd .tox/
+
+# Combine coverage data and create reports
+coverage erase
+coverage combine
+coverage report
+coverage xml
+
+# Upload combined coverage reports to codecov.io
+codecov --file coverage.xml
