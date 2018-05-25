@@ -1,7 +1,6 @@
 # Config file for automatic testing at travis-ci.org
 stages:
   - test
-  - quality
   - name: deploy
     if: tag IS present
 
@@ -34,18 +33,29 @@ before_install:
   - cd ..
 
 install: pip install -U tox-travis codecov
-  
+
 # This will run jobs for each Python environment and assign them to the default
 # "test" stage
 script: tox
 
+after_success:
+  # Combine all environment-specific .coverage files into a single .coverage
+  # file. On Travis, there is only one coverage file per job. Hene, this does
+  # nothing other then copying the environment-specific .tox/.coverage to
+  # .coverage.
+  - coverage combine .tox/.coverage.*
+
+  # Generate an XML report of coverage results
+  - coverage xml
+
+  # Upload coverage report to codecov.io
+  - codecov --file coverage.xml
+
 jobs:
   include:
-    - stage: quality
-      python: 3.6
-      script: ./quality-checks
     - stage: deploy
-      script: skip # Do not rerun any test
+      script: skip        # Do not rerun any test
+      after_success: skip # Do not report coverage
       python: 3.6
       deploy:
         provider: pypi
