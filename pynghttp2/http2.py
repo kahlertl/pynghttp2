@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from .sessions import ClientSession
 
 
-async def request(method, url, data=None, host=None, port=None, loop=None):
+async def request(method, url, headers=None, data=None, host=None, port=None, loop=None):
     if not loop:
         loop = asyncio.get_event_loop()
 
@@ -35,7 +35,7 @@ async def request(method, url, data=None, host=None, port=None, loop=None):
         raise NotImplementedError("HTTPS is currently not supported")
 
     async with ClientSession(host, port, loop=loop) as client:
-        resp = client.request(method, url, data=data)
+        resp = client.request(method, url, headers=headers, data=data)
         await resp
         await resp.read()
 
