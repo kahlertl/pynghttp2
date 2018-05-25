@@ -32,6 +32,9 @@ before_install:
   # Go back to default project root
   - cd ..
 
+  # Clean up
+  - rm -rf nghttp2-1.25.0.tar.gz nghttp2-1.25.0/
+
 install: pip install -U tox-travis codecov
 
 # This will run jobs for each Python environment and assign them to the default
@@ -54,9 +57,12 @@ after_success:
 jobs:
   include:
     - stage: deploy
-      script: skip        # Do not rerun any test
-      after_success: skip # Do not report coverage
-      python: 3.6
+      before_install: skip  # Do not install libnghttp2
+      script: skip          # Do not rerun any test
+      # Do not report coverage but must not skip this step. Otherwise the
+      # deployment gets not executed (see travis-ci/#8337)
+      after_success: true
+      python: "3.6"
       deploy:
         provider: pypi
         user: f3anor
