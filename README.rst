@@ -2,6 +2,10 @@
 pynghttp2
 =========
 
+.. image:: https://badge.fury.io/py/pynghttp2.svg
+    :target: https://badge.fury.io/py/pynghttp2
+    :alt: PyPi Version
+
 .. image:: https://travis-ci.org/f3anaro/pynghttp2.svg?branch=master
     :target: https://travis-ci.org/f3anaro/pynghttp2
     :alt: Build Status

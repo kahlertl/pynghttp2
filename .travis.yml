@@ -1,8 +1,13 @@
 # Config file for automatic testing at travis-ci.org
+stages:
+  - test
+  - name: deploy
+    if: tag IS present
 
 language: python
 python:
-  - 3.6
+  - "3.6"
+  - "3.7-dev"
 
 before_install:
   # Build libnghttp2 from source
@@ -29,17 +34,32 @@ before_install:
 
 install: pip install -U tox-travis codecov
 
+# This will run jobs for each Python environment and assign them to the default
+# "test" stage
 script: tox
 
-# Upload combined coverage reports to codecov.io. The reports of the different
-# Python environments are combined in an extra tox testenv.
-after_success: codecov --file .tox/coverage.xml
+after_success:
+  # Combine all environment-specific .coverage files into a single .coverage
+  # file. On Travis, there is only one coverage file per job. Hene, this does
+  # nothing other then copying the environment-specific .tox/.coverage to
+  # .coverage.
+  - coverage combine .tox/.coverage.*
 
-# Deployment to pypi
-deploy:
-  provider: pypi
-  user: f3anor
-  password:
-    secure: RuwCp1YMsKPS8wHZaNF5AgRTx0uziOrebux3eWUL/asoU3760QJmAGLepNXxx1wasc2h4QLeFjs2O0qMsqYV8Gquvh7UWnkwH+wwZj1d862y4f9cCk+uMGd4CywI3JhgtnQJRRV3AHuHEbZMhwCP4Wi+s8WdBdetDuGl2lO6LOWwZ6dO/bKPGMjPOGTwmnlOCXndp8SaiK4gx5oPREZgQNA3YdAyUsxaKP+aRGeu27rXjnNLkHxx+ShwhTP/rJvctTTwNtKeNCysLwOLfhRJnirmLbQOOCfJZ6FbgYTT2R9Y4vEikP35TUNo4Qmy3LXh4RTorZJbHZyEwiBuTW9OyKFZxy/8mLX4VAq+TViW6MwKK4DgUI3WZjX79wLHghc1mg5vwBi9Pf6S3ykao9hEB39aGv39ZT7HZHYsJdBeSFsRgKGaw2tFU8SRV4vzimtCfkwz7GCepZBesgnPgazOi7buZozTOXvSf5iR2ELBAMRbRRFCfpopcFoWnWUiKF1FLTpRZPuY6w/CE13jEgUqRDPQTTG1OPlj2As55emxw0VBrZ7Nltx4tbEMyEXJfdPNjImwbO0dyW0IvqIOhUDOxS7u7qrrh56NmtBiYe8neb8TtGFmxk2eBpRsoe28saAUBZ3veh323whUTt5uTJcmROLBfS+LI5tWofZ+buvaizo=
-  on:
-    tags: true
+  # Generate an XML report of coverage results
+  - coverage xml
+
+  # Upload coverage report to codecov.io
+  - codecov --file coverage.xml
+
+jobs:
+  include:
+    - stage: deploy
+      script: skip        # Do not rerun any test
+      after_success: skip # Do not report coverage
+      python: 3.6
+      deploy:
+        provider: pypi
+        user: f3anor
+        password:
+          secure: RuwCp1YMsKPS8wHZaNF5AgRTx0uziOrebux3eWUL/asoU3760QJmAGLepNXxx1wasc2h4QLeFjs2O0qMsqYV8Gquvh7UWnkwH+wwZj1d862y4f9cCk+uMGd4CywI3JhgtnQJRRV3AHuHEbZMhwCP4Wi+s8WdBdetDuGl2lO6LOWwZ6dO/bKPGMjPOGTwmnlOCXndp8SaiK4gx5oPREZgQNA3YdAyUsxaKP+aRGeu27rXjnNLkHxx+ShwhTP/rJvctTTwNtKeNCysLwOLfhRJnirmLbQOOCfJZ6FbgYTT2R9Y4vEikP35TUNo4Qmy3LXh4RTorZJbHZyEwiBuTW9OyKFZxy/8mLX4VAq+TViW6MwKK4DgUI3WZjX79wLHghc1mg5vwBi9Pf6S3ykao9hEB39aGv39ZT7HZHYsJdBeSFsRgKGaw2tFU8SRV4vzimtCfkwz7GCepZBesgnPgazOi7buZozTOXvSf5iR2ELBAMRbRRFCfpopcFoWnWUiKF1FLTpRZPuY6w/CE13jEgUqRDPQTTG1OPlj2As55emxw0VBrZ7Nltx4tbEMyEXJfdPNjImwbO0dyW0IvqIOhUDOxS7u7qrrh56NmtBiYe8neb8TtGFmxk2eBpRsoe28saAUBZ3veh323whUTt5uTJcmROLBfS+LI5tWofZ+buvaizo=
+
