@@ -158,7 +158,6 @@ async def test_json(echo_server, event_loop):
             assert echo["status"] == "ok"
             assert echo["error"] == None
 
-            
             resp = session.post('http://localhost:64602/echo', data="invalid json")
             await resp
             echo = await resp.json()
@@ -176,12 +175,13 @@ async def test_client_terminate_with_request(echo_server, event_loop):
     async with echo_server:
         async with ClientSession(host='localhost', port=64602, loop=event_loop) as session:
             resp = session.get('http://localhost:64602/ping')
-            await resp
+
             # Terminate the session with a specific error code
             await session.terminate(nghttp2.error_code.INTERNAL_ERROR)
 
             # The error code is expected in the exception raised by all further operations
             with pytest.raises(ConnectionResetError) as excinfo:
+                await resp
                 await resp.text()
             assert "INTERNAL_ERROR" in str(excinfo.value)
 

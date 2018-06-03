@@ -406,6 +406,13 @@ class ClientProtocol(BaseHTTP2):
     def _submitting_paused(self):
         return len(self._stream_data) >= self._max_streams
 
+    def connection_lost(self, exc):
+        super().connection_lost(exc)
+
+        for req, resp in self._pending:
+            req.set_exception(self._goaway_error)
+            resp.set_exception(self._goaway_error)
+
     def establish_session(self):
         logger.debug('Connected to %s:%d', *self.peername)
         options = nghttp2.Options(no_auto_window_update=True, no_http_messaging=True)
