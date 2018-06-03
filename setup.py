@@ -7,7 +7,7 @@ def read(fname):
 
 setup(
     name='pynghttp2',
-    version='0.3.0',
+    version='0.3.1',
     platforms=['POSIX/Unix'],
     description='Asyncio bindings for libnghttp2 based on ctypes',
     long_description=read('README.rst'),
