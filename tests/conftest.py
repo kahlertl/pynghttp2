@@ -25,13 +25,25 @@ async def send_stream(reader):
 
 class EchoServer(object):
 
-    def __init__(self, loop):
+    def __init__(self, loop, settings=None):
         self.loop = loop
         self.session = None
         self.handlers = []
+        self._settings = settings
+
+    @property
+    def settings(self):
+        return self._settings
+    
+    @settings.setter
+    def settings(self, settings):
+        if self.session is not None:
+            raise RuntimeError("Server is already started")
+        self._settings = settings
 
     async def __aenter__(self):
-        self.session = ServerSession(host='localhost', port=64602, loop=self.loop)
+        self.session = ServerSession(host='localhost', port=64602,
+                                     settings=self._settings, loop=self.loop)
         await self.session.start()
         self.handlers.append(self.loop.create_task(self._handle_requests()))
         return self.session
@@ -71,7 +83,7 @@ class EchoServer(object):
             try:
                 await handler
             except ConnectionResetError:
-                print("Connection closed")
+                pass
             except Exception as err:
                 traceback.print_exc()
 

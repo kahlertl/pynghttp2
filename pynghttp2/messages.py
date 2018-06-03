@@ -9,11 +9,12 @@ from . import nghttp2
 
 class StreamClosedError(ConnectionError):
     
-    def __init__(self, stream_id=None):
-        if stream_id is not None:
-            super().__init__("Stream {} was closed".format(stream_id))
-        else:
-            super().__init__("Stream was closed")
+    def __init__(self, stream_id=None, error_code=nghttp2.error_code.NO_ERROR):
+        super().__init__("Stream {} was closed with {}".format(
+            stream_id,
+            error_code.name,
+        ))
+        self.error_code = error_code
 
 
 class Direction(enum.IntEnum):
@@ -49,7 +50,8 @@ class HTTP2Message(object):
                 self.content.feed_data(data)
                 self.content.feed_eof()
 
-                self.headers.append(('content-length', str(len(data))))
+                if self.content_length is None:
+                    self.headers.append(('content-length', str(len(data))))
             else:
                 self.content = data
 
@@ -80,6 +82,28 @@ class HTTP2Message(object):
     def stream_id(self, stream_id):
         self._stream_id = stream_id
         self.content._stream_id = stream_id
+
+    def _find_header(self, name):
+        for key, value in self.headers:
+            if key == name:
+                return value
+        return None
+
+    @property
+    def method(self):
+        return self._find_header(':method')
+
+    @property
+    def path(self):
+        return self._find_header(':path')
+
+    @property
+    def scheme(self):
+        return self._find_header(':scheme')
+
+    @property
+    def authority(self):
+        return self._find_header(':authority')
 
     @property
     def content_length(self):
@@ -155,8 +179,8 @@ class HTTP2Message(object):
             assert self._headers_sent, "HEADERS still pending"
             self._sent_waiter.set_result(None)
 
-    def stream_closed(self):
-        self.set_exception(StreamClosedError(self._stream_id))
+    def stream_closed(self, error_code):
+        self.set_exception(StreamClosedError(self._stream_id, error_code))
 
     def __await__(self):
         if self._direction == Direction.RECEIVING:
@@ -175,11 +199,8 @@ class HTTP2Message(object):
 
         waiter = self._loop.create_future()
         self._headers_waiter = waiter
-        try:
-            self.protocol.flush()
-            await waiter
-        finally:
-            self._headers_waiter = None
+        self.protocol.flush()
+        await waiter
 
     async def _wait_sent(self):
         if self._headers_sent and self._content_sent:
@@ -192,11 +213,8 @@ class HTTP2Message(object):
 
         waiter = self._loop.create_future()
         self._sent_waiter = waiter
-        try:
-            self.protocol.flush()
-            await waiter
-        finally:
-            self._sent_waiter = None
+        self.protocol.flush()
+        await waiter
 
 
 class Request(HTTP2Message):

@@ -22,37 +22,38 @@ send_id = 0
 @nghttp2.on_frame_recv_callback
 def on_frame_recv(session, frame, protocol):
     stream_id = frame[0].hd.stream_id
+    frame_type = frame[0].hd.type
 
-    # print("recv", nghttp2.frame_type(frame[0].hd.type).name, f"stream_id={stream_id}")
+    # print(protocol.__class__.__name__, "recv", nghttp2.frame_type(frame_type).name, f"stream_id={stream_id}")
     # if frame[0].hd.flags & nghttp2.flag.END_STREAM:
-    #     print("     END_STREAM")
+    #     print(protocol.__class__.__name__, "     END_STREAM")
+    # if frame[0].hd.flags & nghttp2.flag.ACK:
+    #     print(protocol.__class__.__name__, "     ACK")
 
-    # if frame[0].hd.type == nghttp2.frame_type.DATA:
-    #     global recv_id
-    #     print(f"    id={recv_id}")
-    #     recv_id += 1
+    # if frame_type == nghttp2.frame_type.RST_STREAM:
+    #     print(protocol.__class__.__name__, f"     error_code={nghttp2.error_code(frame[0].rst_stream.error_code).name}")
 
-    # if frame[0].hd.type == nghttp2.frame_type.RST_STREAM:
-    #     print(f"     error_code={nghttp2.error_code(frame[0].rst_stream.error_code).name}")
-
-    # if frame[0].hd.type == nghttp2.frame_type.WINDOW_UPDATE:
+    # if frame_type == nghttp2.frame_type.WINDOW_UPDATE:
     #     if stream_id == 0:
-    #         print(f"    connection_window_size={protocol.session.get_remote_window_size()}")
+    #         print(protocol.__class__.__name__, f"    connection_window_size={protocol.session.get_remote_window_size()}")
     #     else:
-    #         print(f"    stream_window_size={protocol.session.get_stream_remote_window_size(stream_id)}")
+    #         print(protocol.__class__.__name__, f"    stream_window_size={protocol.session.get_stream_remote_window_size(stream_id)}")
 
     if frame[0].hd.flags & nghttp2.flag.END_HEADERS:
         protocol.headers_received(stream_id)
 
     if frame[0].hd.flags & nghttp2.flag.END_STREAM:
-        if frame[0].hd.type in [nghttp2.frame_type.HEADERS, nghttp2.frame_type.DATA]:
+        if frame_type in [nghttp2.frame_type.HEADERS, nghttp2.frame_type.DATA]:
             protocol.content_received(stream_id)
 
-    if frame[0].hd.type == nghttp2.frame_type.WINDOW_UPDATE:
+    if frame_type == nghttp2.frame_type.WINDOW_UPDATE:
         protocol.window_update_received(stream_id)
 
-    elif frame[0].hd.type == nghttp2.frame_type.GOAWAY:
-        protocol.goaway_received()
+    elif frame_type == nghttp2.frame_type.GOAWAY:
+        protocol.goaway_received(nghttp2.error_code(frame[0].goaway.error_code))
+
+    elif frame_type == nghttp2.frame_type.SETTINGS:
+        protocol.settings_updated()
 
     return 0
 
@@ -60,34 +61,28 @@ def on_frame_recv(session, frame, protocol):
 @nghttp2.on_frame_send_callback
 def on_frame_send(session, frame, protocol):
     stream_id = frame[0].hd.stream_id
+    frame_type = frame[0].hd.type
 
-    # print("send", nghttp2.frame_type(frame[0].hd.type).name, f"stream_id={stream_id}")
+    # print(protocol.__class__.__name__, "send", nghttp2.frame_type(frame_type).name, f"stream_id={stream_id}")
     # if frame[0].hd.flags & nghttp2.flag.END_STREAM:
-    #     print("     END_STREAM")
+    #     print(protocol.__class__.__name__, "     END_STREAM")
 
-    # if frame[0].hd.type == nghttp2.frame_type.RST_STREAM:
-    #     print(f"     error_code={nghttp2.error_code(frame[0].rst_stream.error_code).name}")
+    # if frame_type == nghttp2.frame_type.RST_STREAM:
+    #     print(protocol.__class__.__name__, f"     error_code={nghttp2.error_code(frame[0].rst_stream.error_code).name}")
 
-    # if frame[0].hd.type == nghttp2.frame_type.DATA:
-    #     global send_id
-    #     print(f"    id={send_id}")
-    #     send_id += 1
-
-    # if frame[0].hd.type == nghttp2.frame_type.DATA:
-    #     print(f"    connection_window_size={protocol.session.get_remote_window_size()}")
-    #     print(f"    stream_window_size={protocol.session.get_stream_remote_window_size(stream_id)}")
+    # if frame_type == nghttp2.frame_type.DATA:
+    #     print(protocol.__class__.__name__, f"    connection_window_size={protocol.session.get_remote_window_size()}")
+    #     print(protocol.__class__.__name__, f"    stream_window_size={protocol.session.get_stream_remote_window_size(stream_id)}")
 
     if frame[0].hd.flags & nghttp2.flag.END_HEADERS:
-        # msg = nghttp2.session_get_stream_user_data(session, stream_id)
         protocol.headers_sent(stream_id)
 
     if frame[0].hd.flags & nghttp2.flag.END_STREAM:
-        if frame[0].hd.type in [nghttp2.frame_type.HEADERS, nghttp2.frame_type.DATA]:
-            # msg = nghttp2.session_get_stream_user_data(session, stream_id)
+        if frame_type in [nghttp2.frame_type.HEADERS, nghttp2.frame_type.DATA]:
             protocol.content_sent(stream_id)
 
-    if frame[0].hd.type == nghttp2.frame_type.GOAWAY:
-        protocol.goaway_sent()
+    elif frame_type == nghttp2.frame_type.GOAWAY:
+        protocol.goaway_sent(nghttp2.error_code(frame[0].goaway.error_code))
 
     return 0
 
@@ -116,9 +111,9 @@ def on_data_chunk_recv(session, flags, stream_id, data, length, protocol):
 
 @nghttp2.on_stream_close_callback
 def on_stream_close(session, stream_id, error_code, protocol):
-    logger.debug("Stream %d closed (%s)", stream_id, nghttp2.error_code(error_code))
-    msg = nghttp2.session_get_stream_user_data(session, stream_id)
-    protocol.stream_closed(msg, error_code)
+    error = nghttp2.error_code(error_code)
+    logger.debug("Stream %d closed (%s)", stream_id, error.name)
+    protocol.stream_closed(stream_id, error)
     return 0
 
 
@@ -131,7 +126,7 @@ def on_begin_headers(session, frame, protocol):
 
 class BaseHTTP2(asyncio.Protocol):
 
-    def __init__(self, loop):
+    def __init__(self, settings, loop):
         super().__init__()
         self.loop = loop
         self.session = None
@@ -145,12 +140,17 @@ class BaseHTTP2(asyncio.Protocol):
         # collected and a callback would try to dereference the Python object
         # pointer leading to a SEGFAULT error.
         self._stream_data = {}
+        
+        # Wait for the first SETTINGS frame before submitting any new stream
+        self._max_streams = 0
 
-        self._paused = False
+        self._settings = settings
+        self._writing_paused = False
         self._connection_lost = False
         self._drain_waiter = None
         self._window_update_waiters = {}
         self._goaway_waiter = None
+        self._goaway_error = None
 
     def connection_made(self, transport):
         self.peername = transport.get_extra_info('peername')
@@ -180,13 +180,18 @@ class BaseHTTP2(asyncio.Protocol):
         self.session = None
         self._connection_lost = True
 
+        if self._goaway_error is None:
+            self._goaway_error = ConnectionResetError('Connection lost')
+
+        reset_error = exc or self._goaway_error
+
         for incoming, outgoing in self._stream_data.values():
             if incoming is not None:
-                incoming.set_exception(ConnectionResetError('Connection lost'))
+                incoming.set_exception(reset_error)
             if outgoing is not None:
-                outgoing.set_exception(ConnectionResetError('Connection lost'))
+                outgoing.set_exception(reset_error)
 
-        if not self._paused and self._drain_waiter is not None:
+        if not self._writing_paused and self._drain_waiter is not None:
             waiter = self._drain_waiter
             self._drain_waiter = None
             if not waiter.done():
@@ -199,7 +204,7 @@ class BaseHTTP2(asyncio.Protocol):
             waiter = self._drain_waiter
             self._drain_waiter = None
             if not waiter.done():
-                waiter.set_exception(ConnectionResetError('Connection lost'))
+                waiter.set_exception(reset_error)
 
         for waiter in self._window_update_waiters.values():
             if not waiter.done():
@@ -219,10 +224,10 @@ class BaseHTTP2(asyncio.Protocol):
                     waiter.set_exception(exc)
 
     def pause_writing(self):
-        self._paused = True
+        self._writing_paused = True
 
     def resume_writing(self):
-        self._paused = False
+        self._writing_paused = False
 
         waiter = self._drain_waiter
         if waiter is not None:
@@ -236,7 +241,7 @@ class BaseHTTP2(asyncio.Protocol):
         if self._connection_lost:
             return
 
-        while self.session.want_write() and not self._paused:
+        while self.session.want_write() and not self._writing_paused:
             data = self.session.mem_send()
             if not data:
                 break
@@ -246,7 +251,7 @@ class BaseHTTP2(asyncio.Protocol):
         assert stream_id not in self._window_update_waiters
 
         if self._connection_lost:
-            raise ConnectionResetError('Connection lost')
+            raise self._goaway_error
 
         waiter = self.loop.create_future()
         self._window_update_waiters[stream_id] = waiter
@@ -254,9 +259,9 @@ class BaseHTTP2(asyncio.Protocol):
 
     async def drain(self):
         if self._connection_lost:
-            raise ConnectionResetError('Connection lost')
+            raise self._goaway_error
 
-        if not self._paused:
+        if not self._writing_paused:
             return
 
         assert self._drain_waiter is None
@@ -283,25 +288,10 @@ class BaseHTTP2(asyncio.Protocol):
         self._goaway_waiter = waiter
         await waiter
 
-    def submit_request(self, req, resp):
-        if req.content.at_eof():
-            provider = None
-        else:
-            provider = nghttp2.data_provider(
-                source=nghttp2.data_source(ptr=req.content),
-                read_callback=read_data_source,
-            )
-        stream_id = self.session.submit_request(req.headers, provider)
-        req.stream_id = stream_id
-        resp.stream_id = stream_id
-        self._stream_data[stream_id] = resp, req
-
-        # Write request to buffers
-        self.flush()
-
-        logger.debug("Submitted request on stream %d", stream_id)
-
     def submit_response(self, stream_id, resp):
+        if self._connection_lost:
+            raise self._goaway_error
+
         if resp.content.at_eof():
             provider = None
         else:
@@ -313,6 +303,13 @@ class BaseHTTP2(asyncio.Protocol):
         req, _ = self._stream_data[stream_id]
         self._stream_data[stream_id] = (req, resp)
         self.flush()
+
+    def settings_updated(self):
+        logger.debug("SETTINGS updated")
+        self._max_streams = min(
+            self.session.get_local_settings(nghttp2.settings_id.MAX_CONCURRENT_STREAMS),
+            self.session.get_remote_settings(nghttp2.settings_id.MAX_CONCURRENT_STREAMS),
+        )
 
     def on_header(self, stream_id, header):
         incoming, _ = self._stream_data[stream_id]
@@ -335,15 +332,11 @@ class BaseHTTP2(asyncio.Protocol):
         if stream_id not in self._stream_data:
             return
 
-        incoming, outgoing = self._stream_data[stream_id]
+        for msg in self._stream_data[stream_id]:
+            if msg is not None:
+                msg.stream_closed(error_code)
 
-        if incoming is not None:
-            incoming.stream_closed()
-
-        if outgoing is not None:
-            incoming.stream_closed()            
-
-        del self._stream_data[msg.stream_id]
+        del self._stream_data[stream_id]
 
     def window_update_received(self, stream_id):
         waiter = self._window_update_waiters.get(stream_id, None)
@@ -351,25 +344,31 @@ class BaseHTTP2(asyncio.Protocol):
             del self._window_update_waiters[stream_id]
             waiter.set_result(None)
 
-    def goaway_sent(self):
+    def goaway_sent(self, error_code):
+        self._goaway_error = ConnectionResetError('Connection lost ({})'.format(
+            error_code.name)
+        )
         waiter = self._goaway_waiter
         if waiter is not None:
             self._goaway_waiter = None
-            waiter.set_result(None)
+            waiter.set_result(error_code)
 
-    def goaway_received(self):
+    def goaway_received(self, error_code):
+        self._goaway_error = ConnectionResetError('Connection lost ({})'.format(
+            error_code.name)
+        )
         self.transport.close()
 
 
 class ServerProtocol(BaseHTTP2):
 
-    def __init__(self, on_request_callback, loop):
-        super().__init__(loop)
+    def __init__(self, on_request_callback, settings, loop):
+        super().__init__(settings, loop)
         self._on_request = on_request_callback
 
     def establish_session(self):
         logger.debug('Connection from %s:%d', *self.peername)
-        options = nghttp2.Options(no_auto_window_update=True)
+        options = nghttp2.Options(no_auto_window_update=True, no_http_messaging=True)
         self.session = nghttp2.Session(nghttp2.session_type.SERVER, {
             'on_frame_recv': on_frame_recv,
             'on_data_chunk_recv': on_data_chunk_recv,
@@ -378,9 +377,7 @@ class ServerProtocol(BaseHTTP2):
             'on_begin_headers': on_begin_headers,
             'on_header': on_header,
         }, user_data=self, options=options)
-        self.session.submit_settings([
-            (nghttp2.settings_id.MAX_CONCURRENT_STREAMS, 10)
-        ])
+        self.session.submit_settings(self._settings)
 
     def begin_headers(self, stream_id):
         req = Request(self, stream_id, direction=Direction.RECEIVING, loop=self.loop)
@@ -398,9 +395,20 @@ class ServerProtocol(BaseHTTP2):
 
 class ClientProtocol(BaseHTTP2):
 
+    def __init__(self, settings, loop):
+        super().__init__(settings, loop)
+
+        # A queue with pending (Request, Response) pairs. We use a FIFO queue to
+        # only open up as much new streams as allowed.
+        self._pending = collections.deque()
+
+    @property
+    def _submitting_paused(self):
+        return len(self._stream_data) >= self._max_streams
+
     def establish_session(self):
         logger.debug('Connected to %s:%d', *self.peername)
-        options = nghttp2.Options(no_auto_window_update=True)
+        options = nghttp2.Options(no_auto_window_update=True, no_http_messaging=True)
         self.session = nghttp2.Session(nghttp2.session_type.CLIENT, {
             'on_frame_recv': on_frame_recv,
             'on_frame_send': on_frame_send,
@@ -409,9 +417,7 @@ class ClientProtocol(BaseHTTP2):
             'on_begin_headers': on_begin_headers,
             'on_header': on_header,
         }, user_data=self, options=options)
-        self.session.submit_settings([
-            (nghttp2.settings_id.MAX_CONCURRENT_STREAMS, 10)
-        ])
+        self.session.submit_settings(self._settings)
 
     def begin_headers(self, stream_id):
         pass
@@ -424,16 +430,72 @@ class ClientProtocol(BaseHTTP2):
         resp, _ = self._stream_data[stream_id]
         resp.content.feed_eof()
 
+    def stream_closed(self, stream_id, error_code):
+        # If the stream was refused, reschedule the request and the response
+        # into the pending queue
+        if error_code == nghttp2.error_code.REFUSED_STREAM:
+            if stream_id in self._stream_data:
+                resp, req = self._stream_data.pop(stream_id)
+
+                # Reset HTTP message
+                req._headers_sent = False
+                req._content_sent = False
+
+                self._pending.appendleft((req, resp))
+
+        super().stream_closed(stream_id, error_code)
+
+    def flush(self):
+        if self._connection_lost:
+            return
+
+        # Submit as much pending requests as allowed by the minimum
+        # SETTINGS_MAX_CONCURRENT_STREAMS of local and remote endpoint
+        while not self._submitting_paused and self._pending:
+            req, resp = self._pending.pop()
+
+            if req.content.at_eof():
+                provider = None
+            else:
+                provider = nghttp2.data_provider(
+                    source=nghttp2.data_source(ptr=req.content),
+                    read_callback=read_data_source,
+                )
+            stream_id = self.session.submit_request(req.headers, provider)
+            req.stream_id = stream_id
+            resp.stream_id = stream_id
+            self._stream_data[stream_id] = resp, req
+
+            logger.debug("Submitted request on stream %d", stream_id)
+
+        super().flush()
+
+    def submit_request(self, req, resp):
+        if self._connection_lost:
+            raise self._goaway_error
+        
+        self._pending.append((req, resp))
+
+        # Submit pending requests and them to buffers
+        self.flush()
+
 
 class ServerSession(object):
 
-    def __init__(self, host, port, loop=None):
+    def __init__(self, host, port, settings=None, loop=None):
         self.host = host
         self.port = port
         self.loop = loop or asyncio.get_event_loop()
         self.server = None
         self._requests = collections.deque()
         self._waiter = None
+        if settings is None:
+            self._settings = [
+                (nghttp2.settings_id.MAX_CONCURRENT_STREAMS, 10),
+            ]
+        else:
+            self._settings = settings
+
 
     async def __aenter__(self):
         await self.start()
@@ -471,7 +533,7 @@ class ServerSession(object):
         assert self.server is None, "ServerSession already started"
         self._requests.clear()
         self.server = await self.loop.create_server(
-            lambda: ServerProtocol(self._received_request, self.loop),
+            lambda: ServerProtocol(self._received_request, self._settings, self.loop),
             self.host, self.port)
 
     def close(self):
@@ -489,11 +551,17 @@ class ServerSession(object):
 
 class ClientSession(object):
 
-    def __init__(self, host, port, loop=None):
+    def __init__(self, host, port, settings=None, loop=None):
         self.host = host
         self.port = port
         self.loop = loop or asyncio.get_event_loop()
         self.protocol = None
+        if settings is None:
+            self._settings = [
+                (nghttp2.settings_id.MAX_CONCURRENT_STREAMS, 10),
+            ]
+        else:
+            self._settings = settings
 
     async def __aenter__(self):
         await self.start()
@@ -505,26 +573,40 @@ class ClientSession(object):
     async def start(self):
         assert self.protocol is None, "ClientSession already started"
         _, self.protocol = await self.loop.create_connection(
-            lambda: ClientProtocol(self.loop),
+            lambda: ClientProtocol(self._settings, self.loop),
             self.host, self.port)
 
-    async def terminate(self):
+    async def terminate(self, error_code=nghttp2.error_code.NO_ERROR):
         if self.protocol is None:
             return
 
-        await self.protocol.terminate()
+        await self.protocol.terminate(error_code)
+        self.protocol = None
 
-    def request(self, method, url, headers=None, data=None):
+    def request_allowed(self):
+        if self.protocol is None:
+            return False
+
+        return self.protocol.session.request_allowed()
+
+    def request(self, method=None, url=None, headers=None, data=None):
+        if self.protocol is None:
+            raise ConnectionError('Connection not established')
+
         # Generate leading pseudo header fields
-        _url = urlparse(url)
-        _headers = [
-            (':method', method),
-            (':scheme', _url.scheme),
-            (':authority', _url.netloc),
-            (':path', _url.path),
-        ]
-        if headers:
-            _headers.extend(headers)
+        if url is not None and method is not None:
+            _url = urlparse(url)
+            _headers = [
+                (':method', method),
+                (':scheme', _url.scheme),
+                (':authority', _url.netloc),
+                (':path', _url.path),
+            ]
+            if headers:
+                _headers.extend(headers)
+        else:
+            assert headers is not None, "Headers must be present if no URL or method is provided"
+            _headers = headers
 
         req = Request(self.protocol, stream_id=None,
             headers=_headers, data=data,

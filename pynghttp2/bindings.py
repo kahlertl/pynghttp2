@@ -142,3 +142,9 @@ nghttp2.nghttp2_session_get_stream_remote_close.restype = c_int
 
 nghttp2.nghttp2_session_find_stream.argtypes = [session_p, c_int32]
 nghttp2.nghttp2_session_find_stream.restype = stream_p
+
+nghttp2.nghttp2_session_get_local_settings.argtypes = [session_p, c_int]
+nghttp2.nghttp2_session_get_local_settings.restype = c_uint32
+
+nghttp2.nghttp2_session_get_remote_settings.argtypes = [session_p, c_int]
+nghttp2.nghttp2_session_get_remote_settings.restype = c_uint32

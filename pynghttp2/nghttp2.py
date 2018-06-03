@@ -541,3 +541,47 @@ class Session(object):
 
     def stream_exists(self, stream_id):
         return bool(nghttp2.nghttp2_session_find_stream(self._session, stream_id))
+
+    def request_allowed(self):
+        """Returns nonzero if new request can be sent from local endpoint.
+
+        This function return False if request is not allowed for this session.
+        There are several reasons why request is not allowed. Some of the
+        reasons are:
+
+         - session is server
+         - stream ID has been spent
+         - ``GOAWAY`` has been sent or received
+
+        The application can call :meth:`submit_request` without consulting this
+        function. In that case, :meth:`submit_request` may raises an error. Or,
+        request is failed to sent, and
+        :data:`.typedefs.on_stream_close_callback` is called.
+
+        Returns:
+            bool: True if a request can be sent
+        """
+        return bool(nghttp2.nghttp2_session_check_request_allowed(self._session))
+
+    def get_local_settings(self, settings_id):
+        """Returns the value of SETTINGS id of local endpoint acknowledged by
+        the remote endpoint. The id must be one of the values defined in
+        :class:`.typedes.nghttp2_settings_id`.
+
+        Args:
+            settings_id (.typedefs.settings_id): Setting that should be returned
+        Returns:
+            int: Current settings value for the local endpoint
+        """
+        return nghttp2.nghttp2_session_get_local_settings(self._session, settings_id)
+        
+    def get_remote_settings(self, settings_id):
+        """Returns the value of SETTINGS id notified by a remote endpoint. The
+        id must be one of values defined in :class:`.typedefs.settings_id`.
+
+        Args:
+            settings_id (.typedefs.settings_id): Setting that should be returned
+        Returns:
+            int: Current settings value for the remote endpoint
+        """
+        return nghttp2.nghttp2_session_get_remote_settings(self._session, settings_id)

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import pytest
-from pynghttp2 import ClientSession, ServerSession
+from pynghttp2 import ClientSession, ServerSession, StreamClosedError, nghttp2
 
 
 @pytest.mark.asyncio
@@ -15,6 +15,8 @@ async def test_connection_refused(event_loop):
 async def test_ping(echo_server, event_loop):
     async with echo_server:
         async with ClientSession(host='localhost', port=64602, loop=event_loop) as session:
+            assert session.request_allowed() == True, "It must be allowed to send requests"
+
             resp = session.get('http://localhost:64602/ping')
             assert resp.content.at_eof() == False, "Response must not be at EOF before sending"
             await resp
@@ -82,6 +84,18 @@ async def test_interleave_streams(echo_server, event_loop):
 
             assert size1 == stream1.content_length
             assert size2 == stream2.content_length
+
+
+@pytest.mark.asyncio
+async def test_max_concurrect_streams(echo_server, event_loop):
+    echo_server.settings = [
+        (nghttp2.settings_id.MAX_CONCURRENT_STREAMS, 1),
+    ]
+    async with echo_server:
+        async with ClientSession(host='localhost', port=64602, loop=event_loop) as session:
+            resp1 = session.get('http://localhost:64602/ping')
+            resp2 = session.get('http://localhost:64602/ping')
+            task = await asyncio.gather(resp1, resp2)
 
 
 @pytest.mark.asyncio
@@ -156,4 +170,21 @@ async def test_client_terminate(echo_server, event_loop):
     async with echo_server:
         async with ClientSession(host='localhost', port=64602, loop=event_loop) as session:
             await session.terminate()
+
+@pytest.mark.asyncio
+async def test_client_terminate_with_request(echo_server, event_loop):
+    async with echo_server:
+        async with ClientSession(host='localhost', port=64602, loop=event_loop) as session:
+            resp = session.get('http://localhost:64602/ping')
+            await resp
+            # Terminate the session with a specific error code
+            await session.terminate(nghttp2.error_code.INTERNAL_ERROR)
+
+            # The error code is expected in the exception raised by all further operations
+            with pytest.raises(ConnectionResetError) as excinfo:
+                await resp.text()
+            assert "INTERNAL_ERROR" in str(excinfo.value)
+
+            with pytest.raises(ConnectionError) as excinfo:
+                resp = session.get('http://localhost:64602/ping')
 

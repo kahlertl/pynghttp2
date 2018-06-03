@@ -63,7 +63,6 @@ class StreamReader(object):
         if self._protocol is not None:
             self._protocol.session.resume_data(self._stream_id)
 
-
     async def read(self, n=-1):
         if self._exception is not None:
             raise self._exception
@@ -82,14 +81,7 @@ class StreamReader(object):
             return b''.join(blocks)
 
         if not self._buffer and not self._eof:
-            waiter = self._loop.create_future()
-            self._waiter = waiter
-
-            try:
-                await self._waiter
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                self._waiter = None
-                raise
+            await self._wait()
 
         data = self.read_nowait(n)
         self._consume_window(data)
