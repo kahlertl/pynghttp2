@@ -144,6 +144,10 @@ class BaseHTTP2(asyncio.Protocol):
         # Wait for the first SETTINGS frame before submitting any new stream
         self._max_streams = 0
 
+        # A queue with pending (Response, Request) pairs. We use a FIFO queue to
+        # only open up as much new streams as allowed.
+        self._pending = collections.deque()
+
         self._settings = settings
         self._writing_paused = False
         self._connection_lost = False
@@ -190,6 +194,10 @@ class BaseHTTP2(asyncio.Protocol):
                 incoming.set_exception(reset_error)
             if outgoing is not None:
                 outgoing.set_exception(reset_error)
+
+        for resp, req in self._pending:
+            req.set_exception(self._goaway_error)
+            resp.set_exception(self._goaway_error)
 
         if not self._writing_paused and self._drain_waiter is not None:
             waiter = self._drain_waiter
@@ -240,6 +248,25 @@ class BaseHTTP2(asyncio.Protocol):
     def flush(self):
         if self._connection_lost:
             return
+
+        # Submit as much pending requests as allowed by the minimum
+        # SETTINGS_MAX_CONCURRENT_STREAMS of local and remote endpoint
+        while self._pending and len(self._stream_data) < self._max_streams:
+            resp, req = self._pending.pop()
+
+            if req.content.at_eof():
+                provider = None
+            else:
+                provider = nghttp2.data_provider(
+                    source=nghttp2.data_source(ptr=req.content),
+                    read_callback=read_data_source,
+                )
+            stream_id = self.session.submit_request(req.headers, provider)
+            req.stream_id = stream_id
+            resp.stream_id = stream_id
+            self._stream_data[stream_id] = resp, req
+
+            logger.debug("Submitted request on stream %d", stream_id)
 
         while self.session.want_write() and not self._writing_paused:
             data = self.session.mem_send()
@@ -395,24 +422,6 @@ class ServerProtocol(BaseHTTP2):
 
 class ClientProtocol(BaseHTTP2):
 
-    def __init__(self, settings, loop):
-        super().__init__(settings, loop)
-
-        # A queue with pending (Request, Response) pairs. We use a FIFO queue to
-        # only open up as much new streams as allowed.
-        self._pending = collections.deque()
-
-    @property
-    def _submitting_paused(self):
-        return len(self._stream_data) >= self._max_streams
-
-    def connection_lost(self, exc):
-        super().connection_lost(exc)
-
-        for req, resp in self._pending:
-            req.set_exception(self._goaway_error)
-            resp.set_exception(self._goaway_error)
-
     def establish_session(self):
         logger.debug('Connected to %s:%d', *self.peername)
         options = nghttp2.Options(no_auto_window_update=True, no_http_messaging=True)
@@ -452,36 +461,11 @@ class ClientProtocol(BaseHTTP2):
 
         super().stream_closed(stream_id, error_code)
 
-    def flush(self):
-        if self._connection_lost:
-            return
-
-        # Submit as much pending requests as allowed by the minimum
-        # SETTINGS_MAX_CONCURRENT_STREAMS of local and remote endpoint
-        while not self._submitting_paused and self._pending:
-            req, resp = self._pending.pop()
-
-            if req.content.at_eof():
-                provider = None
-            else:
-                provider = nghttp2.data_provider(
-                    source=nghttp2.data_source(ptr=req.content),
-                    read_callback=read_data_source,
-                )
-            stream_id = self.session.submit_request(req.headers, provider)
-            req.stream_id = stream_id
-            resp.stream_id = stream_id
-            self._stream_data[stream_id] = resp, req
-
-            logger.debug("Submitted request on stream %d", stream_id)
-
-        super().flush()
-
     def submit_request(self, req, resp):
         if self._connection_lost:
             raise self._goaway_error
         
-        self._pending.append((req, resp))
+        self._pending.append((resp, req))
 
         # Submit pending requests and them to buffers
         self.flush()
