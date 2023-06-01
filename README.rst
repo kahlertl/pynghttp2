@@ -6,12 +6,8 @@ pynghttp2
     :target: https://badge.fury.io/py/pynghttp2
     :alt: PyPi Version
 
-.. image:: https://travis-ci.org/f3anaro/pynghttp2.svg?branch=master
-    :target: https://travis-ci.org/f3anaro/pynghttp2
-    :alt: Build Status
-
-.. image:: https://codecov.io/gh/f3anaro/pynghttp2/branch/master/graph/badge.svg
-    :target: https://codecov.io/gh/f3anaro/pynghttp2
+.. image:: https://codecov.io/gh/kahlertl/pynghttp2/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/kahlertl/pynghttp2
     :alt: Code Coverage
 
 .. image:: https://readthedocs.org/projects/pynghttp2/badge/?version=latest
